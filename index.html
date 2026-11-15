@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Hisab - Smart Finance Tracker</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- Top Header -->
+        <header class="top-bar">
+            <div class="header-auth-area">
+                <button class="top-login-btn" id="guestAuthBtn" onclick="openAuthModal('register')">
+                    <i class="ri-user-add-line"></i> Login / Register
+                </button>
+
+                <div class="user-profile hidden" id="loggedInProfile" onclick="openProfileDropdown(event)" title="Click for Password & Account Options">
+                    <img src="https://ui-avatars.com/api/?name=Student&background=00b894&color=fff" alt="Profile" id="userAvatar">
+                    <div class="user-info">
+                        <span class="greeting" id="syncBadge">✓ Verified</span>
+                        <h4 id="userName">Student User</h4>
+                    </div>
+                </div>
+            </div>
+
+            <div class="brand-actions">
+                <span class="app-logo">Student Hisab</span>
+                <button class="icon-btn" id="menuBtn">
+                    <i class="ri-more-2-fill"></i>
+                </button>
+            </div>
+
+            <!-- Three-Dot Dropdown Menu -->
+            <div class="dropdown-menu hidden" id="dropdownMenu">
+                <a href="#" onclick="goToWalletTab()"><i class="ri-wallet-3-line"></i> Wallet Management</a>
+                <a href="#" onclick="openSubPage('mess')"><i class="ri-group-line"></i> Mess & Group Expense</a>
+                <a href="#" onclick="openSubPage('tuition')"><i class="ri-book-open-line"></i> Tuition Manager</a>
+                <a href="#" onclick="openSubPage('debt')"><i class="ri-hand-coin-line"></i> ধার ও পরিশোধ (Borrow & Pay)</a>
+                <a href="#" onclick="openSubPage('backup')"><i class="ri-download-cloud-2-line"></i> Backup & Account</a>
+            </div>
+        </header>
+
+        <!-- Profile Dropdown Menu (Click on Profile Icon to Change Password or Sign Out) -->
+        <div class="profile-dropdown hidden" id="profileDropdown">
+            <a href="#" onclick="openChangePasswordModal()"><i class="ri-key-2-line"></i> Change Password</a>
+            <a href="#" onclick="openSubPage('backup')"><i class="ri-cloud-line"></i> Account & Backup</a>
+            <a href="#" onclick="triggerSignOut()"><i class="ri-logout-box-r-line"></i> Sign Out</a>
+        </div>
+
+        <!-- ==================== PAGE 1: HOME DASHBOARD ==================== -->
+        <main id="page-home" class="page active">
+            
+            <!-- Quick Action Buttons -->
+            <div class="quick-actions">
+                <button class="btn btn-income" onclick="openTxModal('income')">
+                    <i class="ri-add-circle-line"></i> + Income
+                </button>
+                <button class="btn btn-expense" onclick="openTxModal('expense')">
+                    <i class="ri-indeterminate-circle-line"></i> - Expense
+                </button>
+                <button class="btn btn-transfer" onclick="openTransferModal()">
+                    <i class="ri-arrow-left-right-line"></i> Transfer
+                </button>
+            </div>
+
+            <!-- Smart Cloud Sync Alert Banner -->
+            <div class="cloud-sync-banner alert-green" id="cloudSyncBanner" onclick="triggerSmartCloudSync()">
+                <div class="sync-banner-left">
+                    <i class="ri-cloud-check-line" id="syncBannerIcon"></i>
+                    <div>
+                        <h4 id="syncBannerTitle">Ready for Entries</h4>
+                        <small id="syncBannerDesc">Add your income or expense to start tracking.</small>
+                    </div>
+                </div>
+                <button class="sync-action-pill" id="syncActionBtn">Ready ✓</button>
+            </div>
+
+            <!-- Customizable Summary Cards -->
+            <div class="summary-section">
+                
+                <!-- Card 1: Total Balance (Customizable Wallets with Password) -->
+                <div class="card balance-card" data-card="balance">
+                    <div class="card-header">
+                        <span>Total Balance <button class="small-filter-btn" onclick="openBalanceFilterModal()" title="Customize Wallets"><i class="ri-equalizer-line"></i> Select Wallets</button></span>
+                        <i class="ri-shield-check-line"></i>
+                    </div>
+                    <h2 class="total-amount" id="homeTotalBalance">৳ 0</h2>
+                    <small class="sync-status" id="balanceFilterLabel"><i class="ri-checkbox-circle-line"></i> All Wallets Included</small>
+                </div>
+
+                <!-- Card 2: Monthly Overview -->
+                <div class="card summary-card" data-card="monthly">
+                    <h4>This Month's Overview</h4>
+                    <div class="monthly-grid">
+                        <div class="stat-box income-stat">
+                            <span>Total Income</span>
+                            <h3 id="homeMonthlyIncome">+ ৳ 0</h3>
+                        </div>
+                        <div class="stat-box expense-stat">
+                            <span>Total Expense</span>
+                            <h3 id="homeMonthlyExpense">- ৳ 0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PERMANENT INDEPENDENT AD SLIDER -->
+                <div class="permanent-ad-section" id="overviewAdSlider">
+                    <div class="ad-slider-wrapper" id="adTouchArea">
+                        <button type="button" class="ad-nav-arrow left" onclick="prevCustomAd(event)" aria-label="Previous Ad">
+                            <i class="ri-arrow-left-s-line"></i>
+                        </button>
+
+                        <div id="customAdCard" class="custom-ad-card" onclick="openCurrentAdLink(event)">
+                            <img src="" alt="Sponsored Banner" id="customAdImage" draggable="false">
+                            <div class="custom-ad-overlay">
+                                <span class="ad-tag">Ad</span>
+                                <span class="ad-caption" id="customAdCaption">বিজ্ঞাপন দিতে যোগাযোগ করুন</span>
+                            </div>
+                        </div>
+
+                        <button type="button" class="ad-nav-arrow right" onclick="nextCustomAd(event)" aria-label="Next Ad">
+                            <i class="ri-arrow-right-s-line"></i>
+                        </button>
+                    </div>
+                    <div class="ad-dots" id="customAdDots"></div>
+                </div>
+
+                <!-- 2-Column Mini Cards -->
+                <div class="grid-2-col">
+                    <!-- Card 3: Today's Expense -->
+                    <div class="card mini-card" data-card="today">
+                        <span>Today's Expense</span>
+                        <h3 class="text-danger" id="homeTodayExpense">৳ 0</h3>
+                        <small id="homeTodayCount">0 Transactions</small>
+                    </div>
+
+                    <!-- Card 4: Wallet Overview -->
+                    <div class="card mini-card teal-card" data-card="wallets">
+                        <span>Wallet Summary</span>
+                        <ul class="mini-list" id="homeWalletList"></ul>
+                    </div>
+                </div>
+
+                <!-- Card 5: Borrow & Pay Summary (ধার ও পরিশোধ) -->
+                <div class="card summary-card" data-card="debt" onclick="openSubPage('debt')" style="cursor:pointer;">
+                    <div class="flex-between">
+                        <div>
+                            <span>পাবো (ধার দেওয়া)</span>
+                            <h4 class="text-success" id="homeTotalLent">৳ 0</h4>
+                        </div>
+                        <div class="right-align">
+                            <span>দিতে হবে (ধার নেওয়া)</span>
+                            <h4 class="text-danger" id="homeTotalBorrowed">৳ 0</h4>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Home Action Tools -->
+            <div class="home-tools-row">
+                <button class="customize-btn" id="openCustomizeBtn">
+                    <i class="ri-settings-4-line"></i> Customize Home
+                </button>
+                <button class="backup-home-btn" onclick="openSubPage('backup')">
+                    <i class="ri-cloud-line"></i> Backup & Restore
+                </button>
+            </div>
+
+            <!-- Customize Modal Panel -->
+            <div class="customize-modal hidden" id="customizeModal">
+                <h4>Select Cards to Display on Home</h4>
+                <label><input type="checkbox" checked onchange="toggleCard('balance', this)"> Total Balance Card</label>
+                <label><input type="checkbox" checked onchange="toggleCard('monthly', this)"> Monthly Overview</label>
+                <label><input type="checkbox" checked onchange="toggleCard('today', this)"> Today's Expense</label>
+                <label><input type="checkbox" checked onchange="toggleCard('wallets', this)"> Wallet Summary</label>
+                <label><input type="checkbox" checked onchange="toggleCard('debt', this)"> ধার ও পরিশোধ (Borrow & Pay)</label>
+            </div>
+
+        </main>
+
+        <!-- ==================== PAGE 2: TRANSACTIONS & ANALYTICS LEDGER ==================== -->
+        <main id="page-ledger" class="page">
+            <div class="flex-between">
+                <h3 class="page-title" style="margin:0;">Transactions & Reports</h3>
+                <small id="totalTxCount" style="color:#00e6b8; font-weight:600;">0 items</small>
+            </div>
+            
+            <div class="filter-tabs" style="margin-top:10px;">
+                <button class="tab-btn active" onclick="filterTransactions('all', this)">All</button>
+                <button class="tab-btn" onclick="filterTransactions('income', this)">Income</button>
+                <button class="tab-btn" onclick="filterTransactions('expense', this)">Expense</button>
+                <button class="tab-btn" onclick="filterTransactions('transfer', this)">Transfer</button>
+            </div>
+
+            <div class="advanced-filter-grid">
+                <div>
+                    <label>Filter by Wallet</label>
+                    <select id="ledgerWalletFilter" onchange="renderTransactions()">
+                        <option value="all">All Wallets</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Filter by Category (খাত)</label>
+                    <select id="ledgerCategoryFilter" onchange="renderTransactions()">
+                        <option value="all">All Categories (সকল খাত)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="ledger-summary-bar">
+                <div>
+                    <span>Filtered Income</span>
+                    <b class="text-success" id="filteredIncomeSum">+ ৳ 0</b>
+                </div>
+                <div class="center-align">
+                    <span>Filtered Expense</span>
+                    <b class="text-danger" id="filteredExpenseSum">- ৳ 0</b>
+                </div>
+                <div class="right-align">
+                    <button class="breakdown-toggle-btn" onclick="toggleCategoryBreakdown()">
+                        <i class="ri-pie-chart-2-line"></i> খাত সামারি
+                    </button>
+                </div>
+            </div>
+
+            <div class="card hidden" id="categoryBreakdownBox">
+                <h4 style="font-size:13px; color:#00e6b8; margin-bottom:8px;">Category-wise Breakdown (খাতভিত্তিক হিসাব)</h4>
+                <ul class="wallet-full-list" id="categoryBreakdownList" style="margin-top:0;"></ul>
+            </div>
+
+            <div class="transaction-list" id="transactionList"></div>
+        </main>
+
+        <!-- ==================== PAGE 3: WALLET & SAVINGS ==================== -->
+        <main id="page-wallet" class="page">
+            
+            <!-- Lock Screen -->
+            <div id="walletLockScreen" class="lock-screen">
+                <div class="lock-icon"><i class="ri-shield-keyhole-fill"></i></div>
+                <h3 id="lockTitle">Wallet & Savings Protected</h3>
+                <p id="lockDesc">Enter your account password to unlock your wallets & savings.</p>
+                
+                <div class="pass-wrapper">
+                    <input type="password" id="walletPasswordInput" placeholder="Enter your Password" class="pass-input">
+                    <button type="button" class="eye-btn" onclick="togglePassVisibility('walletPasswordInput', 'eyeIconWallet')">
+                        <i class="ri-eye-line" id="eyeIconWallet"></i>
+                    </button>
+                </div>
+                <small id="passError" class="error-msg"></small>
+                
+                <button class="btn btn-unlock" id="unlockBtn" onclick="handleWalletAuth()">Unlock Wallet</button>
+                <small class="hint-text" id="passHint"></small>
+            </div>
+
+            <!-- Unlocked Wallet & Savings Content -->
+            <div id="walletContent" class="hidden">
+                <div class="flex-between" style="margin-bottom: 12px;">
+                    <h3 class="page-title" style="margin:0;">Wallets & Savings</h3>
+                    <div style="display:flex; gap:6px;">
+                        <button class="small-btn" onclick="openChangePasswordModal()"><i class="ri-key-2-line"></i> Change Password</button>
+                        <button class="lock-again-btn" onclick="lockWallet()"><i class="ri-lock-line"></i> Lock</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="flex-between">
+                        <h4>My Wallets</h4>
+                        <div style="display:flex; gap:6px;">
+                            <button class="small-btn" onclick="openTransferModal()">⇄ Transfer</button>
+                            <button class="small-btn" onclick="openAddWalletModal()">+ Add Wallet</button>
+                        </div>
+                    </div>
+                    <ul class="wallet-full-list" id="fullWalletList"></ul>
+                </div>
+
+                <div class="card">
+                    <div class="flex-between">
+                        <h4>Savings Goals</h4>
+                        <button class="small-btn" onclick="openAddGoalModal()">+ New Goal</button>
+                    </div>
+                    <div id="savingsGoalList" style="margin-top: 10px;"></div>
+                </div>
+
+                <h4 class="section-subtitle">More Ledgers & Tools</h4>
+                <div class="more-features-grid">
+                    <button class="feature-btn" onclick="openSubPage('mess')">
+                        <i class="ri-group-line"></i> Mess Expense
+                    </button>
+                    <button class="feature-btn" onclick="openSubPage('tuition')">
+                        <i class="ri-graduation-cap-line"></i> Tuition Tracker
+                    </button>
+                    <button class="feature-btn" onclick="openSubPage('debt')">
+                        <i class="ri-hand-coin-line"></i> ধার ও পরিশোধ
+                    </button>
+                    <button class="feature-btn" onclick="openSubPage('backup')">
+                        <i class="ri-download-cloud-2-line"></i> Backup & Account
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- ==================== SUB-PAGE 1: MESS & GROUP EXPENSE ==================== -->
+        <main id="page-mess" class="page">
+            <div class="subpage-header">
+                <button class="back-btn" onclick="switchPage('home', document.getElementById('nav-home'))"><i class="ri-arrow-left-line"></i> Back</button>
+                <h3>Mess & Meal Calculator</h3>
+            </div>
+
+            <div class="card balance-card">
+                <div class="grid-2-col">
+                    <div>
+                        <small>Total Mess Expense</small>
+                        <h3 id="messTotalBazaar">৳ 0</h3>
+                    </div>
+                    <div class="right-align">
+                        <small>Current Meal Rate</small>
+                        <h3 id="messMealRate">৳ 0.00</h3>
+                    </div>
+                </div>
+                <small style="display:block; margin-top:6px; color:#d1f7ed;" id="messTotalMeals">Total Meals: 0</small>
+            </div>
+
+            <div class="card">
+                <h4>Add Mess Entry (Bazaar / Meal)</h4>
+                <div class="form-group">
+                    <label>Member Name</label>
+                    <input type="text" id="messMember" placeholder="e.g. Rahim, Karim">
+                </div>
+                <div class="grid-2-col">
+                    <div class="form-group">
+                        <label>Bazaar / Cost (৳)</label>
+                        <input type="number" id="messCost" placeholder="e.g. 500">
+                    </div>
+                    <div class="form-group">
+                        <label>Meals Count</label>
+                        <input type="number" id="messMeals" placeholder="e.g. 3">
+                    </div>
+                </div>
+                <button class="btn btn-unlock" onclick="addMessEntry()">+ Add Mess Record</button>
+            </div>
+
+            <h4 class="section-subtitle">Mess Records</h4>
+            <div id="messList"></div>
+        </main>
+
+        <!-- ==================== SUB-PAGE 2: TUITION MANAGER ==================== -->
+        <main id="page-tuition" class="page">
+            <div class="subpage-header">
+                <button class="back-btn" onclick="switchPage('home', document.getElementById('nav-home'))"><i class="ri-arrow-left-line"></i> Back</button>
+                <h3>Tuition & Earning Tracker</h3>
+            </div>
+
+            <div class="card">
+                <h4>Add New Tuition / Batch</h4>
+                <div class="form-group">
+                    <label>Student / Batch Name</label>
+                    <input type="text" id="tuitionName" placeholder="e.g. Rafi (Class 10)">
+                </div>
+                <div class="grid-2-col">
+                    <div class="form-group">
+                        <label>Monthly Fee (৳)</label>
+                        <input type="number" id="tuitionFee" placeholder="e.g. 3000">
+                    </div>
+                    <div class="form-group">
+                        <label>Receive In Wallet</label>
+                        <select id="tuitionWallet"></select>
+                    </div>
+                </div>
+                <button class="btn btn-unlock" onclick="addTuition()">+ Add Student</button>
+            </div>
+
+            <h4 class="section-subtitle">My Tuition List</h4>
+            <div id="tuitionList"></div>
+        </main>
+
+        <!-- ==================== SUB-PAGE 3: BORROW & PAY (ধার ও পরিশোধ) ==================== -->
+        <main id="page-debt" class="page">
+            <div class="subpage-header">
+                <button class="back-btn" onclick="switchPage('home', document.getElementById('nav-home'))"><i class="ri-arrow-left-line"></i> Back</button>
+                <h3>ধার ও পরিশোধ (Borrow & Pay)</h3>
+            </div>
+
+            <div class="card">
+                <h4>নতুন ধার বা পরিশোধ যোগ করুন</h4>
+                <div class="grid-2-col">
+                    <div class="form-group">
+                        <label>কী করতে চান?</label>
+                        <select id="debtType">
+                            <option value="lent">ধার দিলাম (পাবো)</option>
+                            <option value="borrowed">ধার নিলাম (পরিশোধ করতে হবে)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>টাকার পরিমাণ (৳)</label>
+                        <input type="number" id="debtAmount" placeholder="যেমন: 500">
+                    </div>
+                </div>
+                <div class="grid-2-col">
+                    <div class="form-group">
+                        <label>কোন ওয়ালেট থেকে?</label>
+                        <select id="debtWallet"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>ব্যক্তির নাম ও কারণ</label>
+                        <input type="text" id="debtPerson" placeholder="যেমন: হাসান (বাস ভাড়া)">
+                    </div>
+                </div>
+                <button class="btn btn-unlock" onclick="addDebtRecord()">হিসাব সেভ করুন</button>
+            </div>
+
+            <h4 class="section-subtitle">চলমান ধার ও পরিশোধের তালিকা</h4>
+            <div id="debtList"></div>
+        </main>
+
+        <!-- ==================== SUB-PAGE 4: DATA BACKUP & ACCOUNT ==================== -->
+        <main id="page-backup" class="page">
+            <div class="subpage-header">
+                <button class="back-btn" onclick="switchPage('home', document.getElementById('nav-home'))"><i class="ri-arrow-left-line"></i> Back</button>
+                <h3>Account, Security & Backup</h3>
+            </div>
+
+            <div class="card">
+                <h4><i class="ri-shield-user-line"></i> Student Account & Security</h4>
+                <p style="font-size:12px; color:#9ec5cf; margin:6px 0 12px;" id="accountStatusText">Login or register to sync your financial records securely.</p>
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <button class="btn btn-income" style="width:100%; padding:11px;" onclick="openChangePasswordModal()">
+                        <i class="ri-key-2-line"></i> Change Master Password
+                    </button>
+                    <button class="btn btn-transfer" style="width:100%; padding:11px;" id="googleAuthActionBtn" onclick="handleAccountButtonAction()">
+                        <i class="ri-user-add-line"></i> Login / Register Account
+                    </button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h4><i class="ri-download-cloud-2-line"></i> One-Click Data Backup (Free)</h4>
+                <p style="font-size:12px; color:#9ec5cf; margin:6px 0 12px;">Download your complete data file anytime and store it in your Google Drive or Email.</p>
+                
+                <button class="btn btn-income" style="width:100%; margin-bottom:8px; padding:11px;" onclick="downloadJSONBackup()">
+                    <i class="ri-file-code-line"></i> Download Full Backup (.JSON)
+                </button>
+                
+                <button class="btn btn-transfer" style="width:100%; padding:11px;" onclick="downloadCSVReport()">
+                    <i class="ri-file-excel-2-line"></i> Export Excel Report (.CSV)
+                </button>
+            </div>
+
+            <div class="card">
+                <h4><i class="ri-upload-cloud-2-line"></i> Restore from Backup</h4>
+                <p style="font-size:12px; color:#9ec5cf; margin:6px 0 10px;">Select your previously saved <b>.json</b> backup file to restore all balances and history.</p>
+                <input type="file" id="restoreFileInput" accept=".json" style="font-size:12px; width:100%; margin-bottom:8px;">
+                <button class="btn btn-unlock" onclick="restoreJSONBackup()">Restore Backup Now</button>
+            </div>
+        </main>
+
+        <!-- ==================== MODALS & POPUPS ==================== -->
+
+        <!-- A. Multi-Step Registration & Login Modal -->
+        <div class="modal-overlay hidden" id="authModal" style="z-index: 350;">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <span class="modal-badge"><i class="ri-shield-user-line"></i></span>
+                        <h3 id="authModalTitle">Student Registration</h3>
+                    </div>
+                    <button class="close-btn" onclick="closeModal('authModal')"><i class="ri-close-line"></i></button>
+                </div>
+
+                <!-- Tab Switcher (Hidden during Step 2 Password Setup) -->
+                <div class="auth-tabs" id="authTabBar">
+                    <button type="button" class="auth-tab active" id="tabRegisterBtn" onclick="switchAuthTab('register')">Register New</button>
+                    <button type="button" class="auth-tab" id="tabLoginBtn" onclick="switchAuthTab('login')">Login</button>
+                </div>
+
+                <!-- STEP 1A: REGISTER (Name & Email -> Continue, or Direct Gmail) -->
+                <div id="authStepRegister">
+                    <button class="btn btn-transfer" style="width:100%; padding:11px; margin-bottom:10px;" onclick="startGoogleAuthFlow('register')">
+                        <i class="ri-google-fill"></i> ১ ক্লিকে সরাসরি জিমেইল দিয়ে রেজিস্ট্রেশন
+                    </button>
+
+                    <div class="auth-divider"><span>অথবা ইমেইল দিয়ে</span></div>
+
+                    <div class="form-group">
+                        <label>Full Name (আপনার নাম)</label>
+                        <input type="text" id="regNameInput" placeholder="Enter your full name">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Email Address (ইমেইল অ্যাড্রেস)</label>
+                        <input type="email" id="regEmailInput" placeholder="student@gmail.com">
+                    </div>
+
+                    <button class="btn btn-unlock" onclick="proceedToPasswordSetupStep()">Continue (পরবর্তী ধাপ) <i class="ri-arrow-right-line"></i></button>
+                </div>
+
+                <!-- STEP 1B: LOGIN (Direct Gmail or Email + Password) -->
+                <div id="authStepLogin" class="hidden">
+                    <button class="btn btn-transfer" style="width:100%; padding:11px; margin-bottom:10px;" onclick="startGoogleAuthFlow('login')">
+                        <i class="ri-google-fill"></i> সরাসরি জিমেইল সিলেক্ট করে লগইন
+                    </button>
+
+                    <div class="auth-divider"><span>অথবা ইমেইল ও পাসওয়ার্ড দিয়ে</span></div>
+
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" id="loginEmailInput" placeholder="student@gmail.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Password</label>
+                        <div class="pass-wrapper">
+                            <input type="password" id="loginPassInput" placeholder="Enter your password" class="pass-input">
+                            <button type="button" class="eye-btn" onclick="togglePassVisibility('loginPassInput', 'eyeIconAuthLogin')">
+                                <i class="ri-eye-line" id="eyeIconAuthLogin"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-unlock" onclick="submitDirectEmailLogin()">Login to Account</button>
+                </div>
+
+                <!-- STEP 2: SET STRONG PASSWORD (Used after Gmail Reg OR Email Continue) -->
+                <div id="authStepSetPassword" class="hidden">
+                    <div class="security-warning-box">
+                        <i class="ri-error-warning-fill"></i>
+                        <span><b>সতর্কবার্তা:</b> এটাই আপনার লগইন, ওয়ালেট এবং ব্যালেন্স ট্রান্সফারসহ সকল ক্ষেত্রের একমাত্র পাসওয়ার্ড। এটি কারো সাথে শেয়ার করবেন না এবং অবশ্যই মনে রাখবেন!</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Set Strong Password (অক্ষর, সংখ্যা ও চিহ্নসহ ৬+ অক্ষর)</label>
+                        <div class="pass-wrapper">
+                            <input type="password" id="setupMasterPass" placeholder="যেমন: Abc@123" class="pass-input">
+                            <button type="button" class="eye-btn" onclick="togglePassVisibility('setupMasterPass', 'eyeSetupPass1')">
+                                <i class="ri-eye-line" id="eyeSetupPass1"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Confirm Password (পুনরায় দিন)</label>
+                        <div class="pass-wrapper">
+                            <input type="password" id="setupMasterConfirm" placeholder="Re-enter password" class="pass-input">
+                            <button type="button" class="eye-btn" onclick="togglePassVisibility('setupMasterConfirm', 'eyeSetupPass2')">
+                                <i class="ri-eye-line" id="eyeSetupPass2"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-unlock" onclick="completeFinalRegistration()">Confirm & Complete Registration ✓</button>
+                </div>
+
+                <!-- STEP 3: VERIFY PASSWORD AFTER GMAIL LOGIN -->
+                <div id="authStepVerifyGooglePass" class="hidden">
+                    <p style="font-size:12px; color:#9ec5cf; margin-bottom:10px;" id="googleVerifyGreeting">জিমেইল যাচাই সফল! এবার আপনার একাউন্টের পাসওয়ার্ড দিয়ে প্রবেশ করুন:</p>
+                    <div class="form-group">
+                        <label>Your Account Password</label>
+                        <div class="pass-wrapper">
+                            <input type="password" id="googleVerifyPassInput" placeholder="Enter your password" class="pass-input">
+                            <button type="button" class="eye-btn" onclick="togglePassVisibility('googleVerifyPassInput', 'eyeGoogleVerify')">
+                                <i class="ri-eye-line" id="eyeGoogleVerify"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn btn-unlock" onclick="verifyGoogleMasterPassword()">Verify & Enter App</button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- B. Designed Change Password Modal (Old + New + Confirm with Show/Hide Eye Icons) -->
+        <div class="modal-overlay hidden" id="changePassModal" style="z-index: 380;">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <span class="modal-badge badge-blue"><i class="ri-key-2-line"></i></span>
+                        <h3>Change Password</h3>
+                    </div>
+                    <button class="close-btn" onclick="closeModal('changePassModal')"><i class="ri-close-line"></i></button>
+                </div>
+
+                <div class="form-group">
+                    <label>Old Password (পুরনো পাসওয়ার্ড)</label>
+                    <div class="pass-wrapper">
+                        <input type="password" id="cpOldPass" placeholder="Enter current password" class="pass-input">
+                        <button type="button" class="eye-btn" onclick="togglePassVisibility('cpOldPass', 'eyeCpOld')">
+                            <i class="ri-eye-line" id="eyeCpOld"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>New Password (নতুন পাসওয়ার্ড)</label>
+                    <div class="pass-wrapper">
+                        <input type="password" id="cpNewPass" placeholder="Min 6 chars (Letter, Number & Symbol)" class="pass-input">
+                        <button type="button" class="eye-btn" onclick="togglePassVisibility('cpNewPass', 'eyeCpNew')">
+                            <i class="ri-eye-line" id="eyeCpNew"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Confirm New Password (পুনরায় নতুন পাসওয়ার্ড)</label>
+                    <div class="pass-wrapper">
+                        <input type="password" id="cpConfirmPass" placeholder="Re-enter new password" class="pass-input">
+                        <button type="button" class="eye-btn" onclick="togglePassVisibility('cpConfirmPass', 'eyeCpConfirm')">
+                            <i class="ri-eye-line" id="eyeCpConfirm"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button class="btn btn-unlock" style="margin-top:14px;" onclick="executeMasterPasswordChange()">
+                    <i class="ri-check-double-line"></i> Change Password Now
+                </button>
+            </div>
+        </div>
+
+        <!-- C. Transfer Password Verification Modal (with Show/Hide Eye Icon) -->
+        <div class="modal-overlay hidden" id="transferPassModal" style="z-index: 380;">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <span class="modal-badge badge-red"><i class="ri-shield-keyhole-line"></i></span>
+                        <h3>Confirm Transfer</h3>
+                    </div>
+                    <button class="close-btn" onclick="closeModal('transferPassModal')"><i class="ri-close-line"></i></button>
+                </div>
+                <p style="font-size:12px; color:#9ec5cf; margin-bottom:10px;">ব্যালেন্স ট্রান্সফার সম্পন্ন করতে আপনার পাসওয়ার্ড দিন:</p>
+                <div class="form-group">
+                    <label>Your Password</label>
+                    <div class="pass-wrapper">
+                        <input type="password" id="transferVerifyPass" placeholder="Enter password" class="pass-input">
+                        <button type="button" class="eye-btn" onclick="togglePassVisibility('transferVerifyPass', 'eyeTransferPass')">
+                            <i class="ri-eye-line" id="eyeTransferPass"></i>
+                        </button>
+                    </div>
+                </div>
+                <button class="btn btn-unlock" style="margin-top:12px;" onclick="verifyAndExecuteTransfer()">Verify & Complete Transfer</button>
+            </div>
+        </div>
+
+        <!-- D. Total Balance Wallet Selector Modal (with Show/Hide Eye Icon) -->
+        <div class="modal-overlay hidden" id="balanceFilterModal" style="z-index: 380;">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <span class="modal-badge"><i class="ri-equalizer-line"></i></span>
+                        <h3>Customize Total Balance</h3>
+                    </div>
+                    <button class="close-btn" onclick="closeModal('balanceFilterModal')"><i class="ri-close-line"></i></button>
+                </div>
+                <p style="font-size:12px; color:#9ec5cf; margin-bottom:8px;">হোমপেজের টোটাল ব্যালেন্সে কোন কোন ওয়ালেট শো করবে তা সিলেক্ট করুন:</p>
+                
+                <div id="balanceFilterCheckboxes" class="balance-checkbox-list"></div>
+
+                <div class="form-group">
+                    <label>Password (পরিবর্তন নিশ্চিত করতে পাসওয়ার্ড দিন)</label>
+                    <div class="pass-wrapper">
+                        <input type="password" id="balanceFilterPass" placeholder="Enter your password" class="pass-input">
+                        <button type="button" class="eye-btn" onclick="togglePassVisibility('balanceFilterPass', 'eyeBalancePass')">
+                            <i class="ri-eye-line" id="eyeBalancePass"></i>
+                        </button>
+                    </div>
+                </div>
+                <button class="btn btn-unlock" style="margin-top:12px;" onclick="saveBalanceFilterSettings()">Save Balance Settings</button>
+            </div>
+        </div>
+
+        <!-- E. Add Income / Expense Modal -->
+        <div class="modal-overlay hidden" id="txModal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <span class="modal-badge" id="txModalBadge"><i class="ri-wallet-3-line"></i></span>
+                        <h3 id="txModalTitle">Add Expense</h3>
+                    </div>
+                    <button class="close-btn" onclick="closeModal('txModal')"><i class="ri-close-line"></i></button>
+                </div>
+                <input type="hidden" id="txType" value="expense">
+
+                <div class="form-group">
+                    <label>Amount (৳)</label>
+                    <input type="number" id="txAmount" placeholder="Enter amount (e.g. 120)" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Select Wallet</label>
+                    <select id="txWallet"></select>
+                </div>
+
+                <div class="form-group" style="position: relative;">
+                    <label>Category (Select or Type New)</label>
+                    <input type="text" id="txCategory" placeholder="Type e.g. Food, Bus Fare..." autocomplete="off">
+                    <ul class="suggestions-box hidden" id="categorySuggestions"></ul>
+                </div>
+
+                <div class="form-group">
+                    <label>Note (Optional)</label>
+                    <input type="text" id="txNote" placeholder="Write short details...">
+                </div>
+
+                <button class="btn btn-unlock" onclick="saveTransaction()"><i class="ri-check-double-line"></i> Save Transaction</button>
+            </div>
+        </div>
+
+        <!-- F. Wallet Balance Transfer Modal -->
+        <div class="modal-overlay hidden" id="transferModal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <span class="modal-badge badge-blue"><i class="ri-arrow-left-right-line"></i></span>
+                        <h3>Balance Transfer / Cashout</h3>
+                    </div>
+                    <button class="close-btn" onclick="closeModal('transferModal')"><i class="ri-close-line"></i></button>
+                </div>
+
+                <div class="grid-2-col" style="margin-top:6px;">
+                    <div class="form-group">
+                        <label>From Wallet</label>
+                        <select id="trFromWallet" onchange="updateTransferFeeDefault()"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>To Wallet</label>
+                        <select id="trToWallet"></select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Transfer Amount (৳)</label>
+                    <input type="number" id="trAmount" placeholder="e.g. 1000" oninput="calcFeeFromPercent()">
+                </div>
+
+                <div class="grid-2-col">
+                    <div class="form-group">
+                        <label>Cashout Fee (%)</label>
+                        <input type="number" step="0.01" id="trFeePercent" placeholder="1.85" oninput="calcFeeFromPercent()">
+                    </div>
+                    <div class="form-group">
+                        <label>Fee in Taka (৳)</label>
+                        <input type="number" step="0.01" id="trFeeTaka" placeholder="18.5" oninput="calcPercentFromFee()">
+                    </div>
+                </div>
+
+                <button class="btn btn-transfer" style="width:100%; padding:12px; margin-top:12px;" onclick="promptTransferPasswordVerification()">
+                    <i class="ri-send-plane-fill"></i> Proceed to Transfer
+                </button>
+            </div>
+        </div>
+
+        <!-- G. Add New Wallet Modal -->
+        <div class="modal-overlay hidden" id="addWalletModal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <span class="modal-badge"><i class="ri-bank-card-line"></i></span>
+                        <h3>Add New Wallet</h3>
+                    </div>
+                    <button class="close-btn" onclick="closeModal('addWalletModal')"><i class="ri-close-line"></i></button>
+                </div>
+                <div class="form-group">
+                    <label>Wallet Name</label>
+                    <input type="text" id="newWalletName" placeholder="e.g. Rocket, Bank, Upay">
+                </div>
+                <div class="form-group">
+                    <label>Current Balance (৳)</label>
+                    <input type="number" id="newWalletBalance" placeholder="e.g. 500">
+                </div>
+                <div class="form-group">
+                    <label>Default Cashout Fee (%)</label>
+                    <input type="number" step="0.01" id="newWalletFee" placeholder="e.g. 1.85 (Put 0 for Cash/Bank)">
+                </div>
+                <button class="btn btn-unlock" onclick="saveNewWallet()">+ Create Wallet</button>
+            </div>
+        </div>
+
+        <!-- H. Add Savings Goal Modal -->
+        <div class="modal-overlay hidden" id="addGoalModal">
+            <div class="modal-box">
+                <div class="modal-header">
+                    <div class="modal-title-wrap">
+                        <span class="modal-badge"><i class="ri-archive-drawer-line"></i></span>
+                        <h3>New Savings Goal</h3>
+                    </div>
+                    <button class="close-btn" onclick="closeModal('addGoalModal')"><i class="ri-close-line"></i></button>
+                </div>
+                <div class="form-group">
+                    <label>Goal Title</label>
+                    <input type="text" id="goalTitle" placeholder="e.g. Buy Books, Study Tour">
+                </div>
+                <div class="form-group">
+                    <label>Target Amount (৳)</label>
+                    <input type="number" id="goalTarget" placeholder="e.g. 5000">
+                </div>
+                <div class="form-group">
+                    <label>Already Saved (৳)</label>
+                    <input type="number" id="goalSaved" placeholder="e.g. 500">
+                </div>
+                <button class="btn btn-unlock" onclick="saveNewGoal()">Create Goal</button>
+            </div>
+        </div>
+
+        <!-- I. Smart Ad & Cloud Sync Rewarded Popup Simulator -->
+        <div class="modal-overlay hidden" id="rewardedAdModal" style="z-index: 450;">
+            <div class="modal-box alert-popup-box">
+                <div class="alert-icon-wrap alert-success">
+                    <i class="ri-advertisement-line"></i>
+                </div>
+                <h3>Cloud Backup in Progress</h3>
+                <p id="adCountdownText">Watching a 5-second sponsor video to support free cloud storage & secure your data...</p>
+                <div class="progress-bar" style="margin: 15px 0;">
+                    <div class="progress-fill" id="adProgressFill" style="width: 100%;"></div>
+                </div>
+                <button class="btn btn-unlock" id="adCloseBtn" disabled style="opacity: 0.5;">Please wait (5s)...</button>
+            </div>
+        </div>
+
+        <!-- J. Custom Styled Alert Popup -->
+        <div class="modal-overlay hidden" id="customAlertModal" style="z-index: 400;">
+            <div class="modal-box alert-popup-box">
+                <div class="alert-icon-wrap" id="alertIconWrap">
+                    <i class="ri-error-warning-fill" id="alertIcon"></i>
+                </div>
+                <h3 id="alertTitle">Notice</h3>
+                <p id="alertMessage">Message goes here...</p>
+                <button class="btn btn-unlock" id="alertOkBtn" onclick="closeModal('customAlertModal')">Got It</button>
+            </div>
+        </div>
+
+        <!-- Ethical Banner Ad -->
+        <div class="ethical-ad-banner">
+            <span>Ad: 50% Student Discount on Spoken English & Coding Courses!</span>
+        </div>
+
+        <!-- Bottom Navigation Bar -->
+        <nav class="bottom-nav">
+            <div class="nav-buttons-row">
+                <button class="nav-item active" id="nav-home" onclick="switchPage('home', this)">
+                    <i class="ri-home-5-line"></i>
+                    <span>Home</span>
+                </button>
+                <button class="nav-item" id="nav-ledger" onclick="switchPage('ledger', this)">
+                    <i class="ri-file-list-3-line"></i>
+                    <span>Transactions</span>
+                </button>
+                <button class="nav-item" id="nav-wallet" onclick="switchPage('wallet', this)">
+                    <i class="ri-shield-keyhole-line"></i>
+                    <span>Wallet</span>
+                </button>
+            </div>
+            <div class="nav-credit-bar">
+                Developed for Students by <a href="https://jnhamim.web.app" target="_blank" rel="noopener noreferrer">Jn Hamim</a>
+            </div>
+        </nav>
+
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <!-- Modular JS Files -->
+    <script src="js/store.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/wallet.js"></script>
+    <script src="js/debt.js"></script>
+    <script src="js/features.js"></script>
+    <script src="js/firebase.js"></script>
+</body>
+</html>
