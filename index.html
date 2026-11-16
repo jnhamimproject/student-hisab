@@ -15,15 +15,15 @@
         <!-- Top Header -->
         <header class="top-bar">
             <div class="header-auth-area">
-                <button class="top-login-btn" id="guestAuthBtn" onclick="openAuthModal('register')">
+                <button class="top-login-btn hidden" id="guestAuthBtn" onclick="openAuthModal('register')">
                     <i class="ri-user-add-line"></i> Login / Register
                 </button>
 
-                <div class="user-profile hidden" id="loggedInProfile" onclick="openProfileDropdown(event)" title="Click for Password & Account Options">
+                <div class="user-profile" id="loggedInProfile" onclick="openProfileDropdown(event)" title="Click for Password & Account Options">
                     <img src="https://ui-avatars.com/api/?name=Student&background=00b894&color=fff" alt="Profile" id="userAvatar">
                     <div class="user-info">
                         <span class="greeting" id="syncBadge">✓ Verified</span>
-                        <h4 id="userName">Student User</h4>
+                        <h4 id="userName">Loading...</h4>
                     </div>
                 </div>
             </div>
@@ -45,7 +45,7 @@
             </div>
         </header>
 
-        <!-- Profile Dropdown Menu (Click on Profile Icon to Change Password or Sign Out) -->
+        <!-- Profile Dropdown Menu -->
         <div class="profile-dropdown hidden" id="profileDropdown">
             <a href="#" onclick="openChangePasswordModal()"><i class="ri-key-2-line"></i> Change Password</a>
             <a href="#" onclick="openSubPage('backup')"><i class="ri-cloud-line"></i> Account & Backup</a>
@@ -86,8 +86,10 @@
                 <!-- Card 1: Total Balance (Customizable Wallets with Password) -->
                 <div class="card balance-card" data-card="balance">
                     <div class="card-header">
-                        <span>Total Balance <button class="small-filter-btn" onclick="openBalanceFilterModal()" title="Customize Wallets"><i class="ri-equalizer-line"></i> Select Wallets</button></span>
-                        <i class="ri-shield-check-line"></i>
+                        <span>Total Balance</span>
+                        <button type="button" class="small-filter-btn" onclick="openBalanceFilterModal()">
+                            <i class="ri-equalizer-line"></i> Select Wallets
+                        </button>
                     </div>
                     <h2 class="total-amount" id="homeTotalBalance">৳ 0</h2>
                     <small class="sync-status" id="balanceFilterLabel"><i class="ri-checkbox-circle-line"></i> All Wallets Included</small>
@@ -154,7 +156,7 @@
                             <h4 class="text-success" id="homeTotalLent">৳ 0</h4>
                         </div>
                         <div class="right-align">
-                            <span>দিতে হবে (ধার নেওয়া)</span>
+                            <span>পরিশোধ করতে হবে (ধার নেওয়া)</span>
                             <h4 class="text-danger" id="homeTotalBorrowed">৳ 0</h4>
                         </div>
                     </div>
@@ -244,10 +246,10 @@
             <div id="walletLockScreen" class="lock-screen">
                 <div class="lock-icon"><i class="ri-shield-keyhole-fill"></i></div>
                 <h3 id="lockTitle">Wallet & Savings Protected</h3>
-                <p id="lockDesc">Enter your account password to unlock your wallets & savings.</p>
+                <p id="lockDesc">Enter your Master Password to unlock your wallets & savings.</p>
                 
                 <div class="pass-wrapper">
-                    <input type="password" id="walletPasswordInput" placeholder="Enter your Password" class="pass-input">
+                    <input type="password" id="walletPasswordInput" placeholder="Enter Master Password" class="pass-input">
                     <button type="button" class="eye-btn" onclick="togglePassVisibility('walletPasswordInput', 'eyeIconWallet')">
                         <i class="ri-eye-line" id="eyeIconWallet"></i>
                     </button>
@@ -390,7 +392,7 @@
                 <h4>নতুন ধার বা পরিশোধ যোগ করুন</h4>
                 <div class="grid-2-col">
                     <div class="form-group">
-                        <label>কী করতে চান?</label>
+                        <label>লেনদেনের ধরন</label>
                         <select id="debtType">
                             <option value="lent">ধার দিলাম (পাবো)</option>
                             <option value="borrowed">ধার নিলাম (পরিশোধ করতে হবে)</option>
@@ -427,13 +429,13 @@
 
             <div class="card">
                 <h4><i class="ri-shield-user-line"></i> Student Account & Security</h4>
-                <p style="font-size:12px; color:#9ec5cf; margin:6px 0 12px;" id="accountStatusText">Login or register to sync your financial records securely.</p>
+                <p style="font-size:12px; color:#9ec5cf; margin:6px 0 12px;" id="accountStatusText">Your account is active and secured with your Master Password.</p>
                 <div style="display:flex; flex-direction:column; gap:8px;">
                     <button class="btn btn-income" style="width:100%; padding:11px;" onclick="openChangePasswordModal()">
                         <i class="ri-key-2-line"></i> Change Master Password
                     </button>
-                    <button class="btn btn-transfer" style="width:100%; padding:11px;" id="googleAuthActionBtn" onclick="handleAccountButtonAction()">
-                        <i class="ri-user-add-line"></i> Login / Register Account
+                    <button class="btn btn-expense" style="width:100%; padding:11px;" id="googleAuthActionBtn" onclick="handleAccountButtonAction()">
+                        <i class="ri-logout-box-r-line"></i> Sign Out
                     </button>
                 </div>
             </div>
@@ -461,18 +463,17 @@
 
         <!-- ==================== MODALS & POPUPS ==================== -->
 
-        <!-- A. Multi-Step Registration & Login Modal -->
-        <div class="modal-overlay hidden" id="authModal" style="z-index: 350;">
+        <!-- A. MANDATORY REGISTRATION & LOGIN GATE (Cannot be closed without logging in) -->
+        <div class="modal-overlay" id="authModal" style="z-index: 350; background: rgba(4, 12, 15, 0.96);">
             <div class="modal-box">
                 <div class="modal-header">
                     <div class="modal-title-wrap">
                         <span class="modal-badge"><i class="ri-shield-user-line"></i></span>
                         <h3 id="authModalTitle">Student Registration</h3>
                     </div>
-                    <button class="close-btn" onclick="closeModal('authModal')"><i class="ri-close-line"></i></button>
                 </div>
 
-                <!-- Tab Switcher (Hidden during Step 2 Password Setup) -->
+                <!-- Tab Switcher -->
                 <div class="auth-tabs" id="authTabBar">
                     <button type="button" class="auth-tab active" id="tabRegisterBtn" onclick="switchAuthTab('register')">Register New</button>
                     <button type="button" class="auth-tab" id="tabLoginBtn" onclick="switchAuthTab('login')">Login</button>
@@ -480,7 +481,7 @@
 
                 <!-- STEP 1A: REGISTER (Name & Email -> Continue, or Direct Gmail) -->
                 <div id="authStepRegister">
-                    <button class="btn btn-transfer" style="width:100%; padding:11px; margin-bottom:10px;" onclick="startGoogleAuthFlow('register')">
+                    <button type="button" class="btn btn-transfer" style="width:100%; padding:11px; margin-bottom:10px;" onclick="startGoogleAuthFlow('register')">
                         <i class="ri-google-fill"></i> ১ ক্লিকে সরাসরি জিমেইল দিয়ে রেজিস্ট্রেশন
                     </button>
 
@@ -496,12 +497,12 @@
                         <input type="email" id="regEmailInput" placeholder="student@gmail.com">
                     </div>
 
-                    <button class="btn btn-unlock" onclick="proceedToPasswordSetupStep()">Continue (পরবর্তী ধাপ) <i class="ri-arrow-right-line"></i></button>
+                    <button type="button" class="btn btn-unlock" onclick="proceedToPasswordSetupStep()">Continue (পরবর্তী ধাপ) <i class="ri-arrow-right-line"></i></button>
                 </div>
 
                 <!-- STEP 1B: LOGIN (Direct Gmail or Email + Password) -->
                 <div id="authStepLogin" class="hidden">
-                    <button class="btn btn-transfer" style="width:100%; padding:11px; margin-bottom:10px;" onclick="startGoogleAuthFlow('login')">
+                    <button type="button" class="btn btn-transfer" style="width:100%; padding:11px; margin-bottom:10px;" onclick="startGoogleAuthFlow('login')">
                         <i class="ri-google-fill"></i> সরাসরি জিমেইল সিলেক্ট করে লগইন
                     </button>
 
@@ -522,10 +523,10 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-unlock" onclick="submitDirectEmailLogin()">Login to Account</button>
+                    <button type="button" class="btn btn-unlock" id="emailLoginSubmitBtn" onclick="submitDirectEmailLogin()">Login to Account</button>
                 </div>
 
-                <!-- STEP 2: SET STRONG PASSWORD (Used after Gmail Reg OR Email Continue) -->
+                <!-- STEP 2: SET STRONG PASSWORD -->
                 <div id="authStepSetPassword" class="hidden">
                     <div class="security-warning-box">
                         <i class="ri-error-warning-fill"></i>
@@ -552,7 +553,8 @@
                         </div>
                     </div>
 
-                    <button class="btn btn-unlock" onclick="completeFinalRegistration()">Confirm & Complete Registration ✓</button>
+                    <button type="button" class="btn btn-unlock" id="confirmRegBtn" onclick="completeFinalRegistration()">Confirm & Complete Registration ✓</button>
+                    <button type="button" class="small-btn" style="width:100%; margin-top:8px;" onclick="openAuthModal('register')">← পূর্বের ধাপে ফিরে যান</button>
                 </div>
 
                 <!-- STEP 3: VERIFY PASSWORD AFTER GMAIL LOGIN -->
@@ -567,13 +569,14 @@
                             </button>
                         </div>
                     </div>
-                    <button class="btn btn-unlock" onclick="verifyGoogleMasterPassword()">Verify & Enter App</button>
+                    <button type="button" class="btn btn-unlock" onclick="verifyGoogleMasterPassword()">Verify & Enter App</button>
+                    <button type="button" class="small-btn" style="width:100%; margin-top:8px;" onclick="openAuthModal('login')">← অন্য একাউন্ট ব্যবহার করুন</button>
                 </div>
 
             </div>
         </div>
 
-        <!-- B. Designed Change Password Modal (Old + New + Confirm with Show/Hide Eye Icons) -->
+        <!-- B. Designed Change Password Modal -->
         <div class="modal-overlay hidden" id="changePassModal" style="z-index: 380;">
             <div class="modal-box">
                 <div class="modal-header">
@@ -620,7 +623,7 @@
             </div>
         </div>
 
-        <!-- C. Transfer Password Verification Modal (with Show/Hide Eye Icon) -->
+        <!-- C. Transfer Password Verification Modal -->
         <div class="modal-overlay hidden" id="transferPassModal" style="z-index: 380;">
             <div class="modal-box">
                 <div class="modal-header">
@@ -644,7 +647,7 @@
             </div>
         </div>
 
-        <!-- D. Total Balance Wallet Selector Modal (with Show/Hide Eye Icon) -->
+        <!-- D. Total Balance Wallet Selector Modal -->
         <div class="modal-overlay hidden" id="balanceFilterModal" style="z-index: 380;">
             <div class="modal-box">
                 <div class="modal-header">
@@ -659,7 +662,7 @@
                 <div id="balanceFilterCheckboxes" class="balance-checkbox-list"></div>
 
                 <div class="form-group">
-                    <label>Password (পরিবর্তন নিশ্চিত করতে পাসওয়ার্ড দিন)</label>
+                    <label>Password (নিশ্চিত করতে আপনার পাসওয়ার্ড দিন)</label>
                     <div class="pass-wrapper">
                         <input type="password" id="balanceFilterPass" placeholder="Enter your password" class="pass-input">
                         <button type="button" class="eye-btn" onclick="togglePassVisibility('balanceFilterPass', 'eyeBalancePass')">
@@ -820,7 +823,7 @@
         </div>
 
         <!-- J. Custom Styled Alert Popup -->
-        <div class="modal-overlay hidden" id="customAlertModal" style="z-index: 400;">
+        <div class="modal-overlay hidden" id="customAlertModal" style="z-index: 500;">
             <div class="modal-box alert-popup-box">
                 <div class="alert-icon-wrap" id="alertIconWrap">
                     <i class="ri-error-warning-fill" id="alertIcon"></i>

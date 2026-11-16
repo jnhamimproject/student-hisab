@@ -1,4 +1,4 @@
-// ==================== 6. FIREBASE & 2-STEP MASTER PASSWORD AUTH MODULE (FIXED) ====================
+// ==================== 6. FIREBASE & MANDATORY 2-STEP AUTH MODULE (NON-BLOCKING) ====================
 
 const firebaseConfig = {
   apiKey: "AIzaSyCN9AUHKZVLGv2Le60cZMf6lsEjRNEMj_E",
@@ -13,7 +13,7 @@ const firebaseConfig = {
 let isFirebaseActive = false;
 let pendingRegistrationData = null;
 let pendingGoogleLoginUser = null;
-let isAuthProcessing = false; // Prevents double-tap duplicate errors
+let isAuthProcessing = false;
 
 try {
     if (firebaseConfig.apiKey && typeof firebase !== 'undefined') {
@@ -24,6 +24,14 @@ try {
     }
 } catch (err) {
     console.warn("Firebase init notice:", err);
+}
+
+// Helper: Runs a promise with a maximum timeout so Firebase never hangs the UI button!
+function withTimeout(promise, ms = 3500) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('TIMEOUT')), ms))
+    ]);
 }
 
 function openAuthModal(defaultTab = 'register') {
@@ -53,7 +61,7 @@ function switchAuthTab(mode) {
         regTab.classList.add('active');
         stepReg.classList.remove('hidden');
         stepLogin.classList.add('hidden');
-        modalTitle.innerText = 'Student Registration';
+        modalTitle.innerText = 'Student Registration (বাধ্যতামূলক)';
     } else {
         regTab.classList.remove('active');
         loginTab.classList.add('active');
@@ -86,6 +94,7 @@ function proceedToPasswordSetupStep() {
 }
 
 function showPasswordSetupScreen() {
+    isAuthProcessing = false;
     document.getElementById('authTabBar').classList.add('hidden');
     document.getElementById('authStepRegister').classList.add('hidden');
     document.getElementById('authStepLogin').classList.add('hidden');
@@ -94,38 +103,49 @@ function showPasswordSetupScreen() {
     document.getElementById('authModalTitle').innerText = 'Set Master Password';
     document.getElementById('setupMasterPass').value = '';
     document.getElementById('setupMasterConfirm').value = '';
+    const btn = document.getElementById('confirmRegBtn');
+    if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Confirm & Complete Registration ✓";
+    }
 }
 
 // ==================== 2. GOOGLE FLOW (REGISTER OR LOGIN) ====================
 async function startGoogleAuthFlow(flowType) {
-    if (isAuthProcessing) return;
     if (!isFirebaseActive) {
         return showPopup("Firebase Required", "Google Sign-In requires an active internet connection.", "error");
     }
 
     try {
-        isAuthProcessing = true;
         const provider = new firebase.auth.GoogleAuthProvider();
         provider.setCustomParameters({ prompt: 'select_account' });
         const result = await firebase.auth().signInWithPopup(provider);
         const u = result.user;
-        isAuthProcessing = false;
 
+        // Check Firestore with a 3-second timeout so it never hangs if Firestore isn't created yet
         let existingCloudDoc = null;
         try {
-            const docSnap = await firebase.firestore().collection('students').doc(u.uid).get();
-            if (docSnap.exists) existingCloudDoc = docSnap.data();
+            const docSnap = await withTimeout(
+                firebase.firestore().collection('students').doc(u.uid).get(),
+                3000
+            );
+            if (docSnap && docSnap.exists) existingCloudDoc = docSnap.data();
         } catch (dbErr) {
-            console.warn("Firestore read notice:", dbErr);
+            console.warn("Firestore quick check skipped or timed out:", dbErr);
         }
 
-        if (existingCloudDoc && existingCloudDoc.masterPassword) {
+        // Also check local accounts fallback
+        const localAccounts = JSON.parse(localStorage.getItem('studentHisabAccounts')) || {};
+        const localAcc = localAccounts[u.email?.toLowerCase()];
+
+        if ((existingCloudDoc && existingCloudDoc.masterPassword) || (flowType === 'login' && localAcc && localAcc.pass)) {
+            const savedMasterPass = existingCloudDoc?.masterPassword || localAcc.pass;
             pendingGoogleLoginUser = {
                 uid: u.uid,
-                name: u.displayName || existingCloudDoc.user?.name || 'Student User',
-                email: u.email,
+                name: u.displayName || existingCloudDoc?.user?.name || localAcc?.name || 'Student User',
+                email: u.email.toLowerCase(),
                 photo: u.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.displayName || 'S')}&background=00b894&color=fff`,
-                cloudData: existingCloudDoc
+                cloudData: existingCloudDoc || { masterPassword: savedMasterPass }
             };
             document.getElementById('authTabBar').classList.add('hidden');
             document.getElementById('authStepRegister').classList.add('hidden');
@@ -140,16 +160,15 @@ async function startGoogleAuthFlow(flowType) {
                 method: 'google',
                 uid: u.uid,
                 name: u.displayName || u.email.split('@')[0],
-                email: u.email,
+                email: u.email.toLowerCase(),
                 photo: u.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(u.displayName || 'S')}&background=00b894&color=fff`
             };
             showPasswordSetupScreen();
         }
     } catch (err) {
-        isAuthProcessing = false;
         if (err.code === 'auth/unauthorized-domain') {
             showPopup("Domain Lock Notice", "Firebase Console -> Authentication -> Settings -> Authorized domains-এ গিয়ে jnhamimproject.github.io ডোমেইনটি Add করুন।", "error");
-        } else {
+        } else if (err.code !== 'auth/popup-closed-by-user') {
             showPopup("Google Sign-In Notice", err.message, "error");
         }
     }
@@ -167,6 +186,7 @@ function verifyGoogleMasterPassword() {
     appData = {
         ...appData,
         ...pendingGoogleLoginUser.cloudData,
+        masterPassword: expectedPass,
         user: {
             uid: pendingGoogleLoginUser.uid,
             name: pendingGoogleLoginUser.name,
@@ -177,14 +197,12 @@ function verifyGoogleMasterPassword() {
     pendingGoogleLoginUser = null;
     saveData(true);
     updateUserProfileUI();
-    closeModal('authModal');
+    document.getElementById('authModal').classList.add('hidden');
     showPopup("Welcome Back!", `সফলভাবে লগইন হয়েছে, ${appData.user.name}!`, "success");
 }
 
-// ==================== 3. COMPLETE FINAL REGISTRATION (SMART RECOVERY + LOCK) ====================
+// ==================== 3. COMPLETE FINAL REGISTRATION (100% INSTANT & NON-BLOCKING) ====================
 async function completeFinalRegistration() {
-    if (!pendingRegistrationData || isAuthProcessing) return;
-
     const pass = document.getElementById('setupMasterPass').value.trim();
     const confirmPass = document.getElementById('setupMasterConfirm').value.trim();
     const strictRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).{6,}$/;
@@ -196,38 +214,75 @@ async function completeFinalRegistration() {
         return showPopup("Password Mismatch", "পাসওয়ার্ড এবং কনফার্ম পাসওয়ার্ড দুইটি মেলেনি!", "error");
     }
 
-    isAuthProcessing = true;
-
-    if (pendingRegistrationData.method === 'email') {
-        if (isFirebaseActive) {
-            try {
-                // Try creating new account
-                const userCred = await firebase.auth().createUserWithEmailAndPassword(pendingRegistrationData.email, pass);
-                await userCred.user.updateProfile({ displayName: pendingRegistrationData.name }).catch(() => {});
-                pendingRegistrationData.uid = userCred.user.uid;
-            } catch (err) {
-                // Smart Recovery: If already created (e.g., from previous tap), try signing in with the same password
-                if (err.code === 'auth/email-already-in-use') {
-                    try {
-                        const existingCred = await firebase.auth().signInWithEmailAndPassword(pendingRegistrationData.email, pass);
-                        pendingRegistrationData.uid = existingCred.user.uid;
-                    } catch (signInErr) {
-                        isAuthProcessing = false;
-                        openAuthModal('login');
-                        document.getElementById('loginEmailInput').value = pendingRegistrationData.email;
-                        return showPopup("Already Registered!", "এই ইমেইল দিয়ে পূর্বেই অ্যাকাউন্ট খোলা হয়েছে! অনুগ্রহ করে আপনার পূর্বের পাসওয়ার্ড দিয়ে Login করুন।", "error");
-                    }
-                } else {
-                    isAuthProcessing = false;
-                    return showPopup("Registration Error", err.message, "error");
-                }
-            }
+    // Fallback if pendingRegistrationData was lost
+    if (!pendingRegistrationData) {
+        const currentUser = isFirebaseActive ? firebase.auth().currentUser : null;
+        if (currentUser) {
+            pendingRegistrationData = {
+                method: 'google',
+                uid: currentUser.uid,
+                name: currentUser.displayName || currentUser.email.split('@')[0],
+                email: currentUser.email.toLowerCase(),
+                photo: currentUser.photoURL || `https://ui-avatars.com/api/?name=S&background=00b894&color=fff`
+            };
         } else {
-            pendingRegistrationData.uid = 'local_' + pendingRegistrationData.email;
+            const nameVal = document.getElementById('regNameInput')?.value.trim() || 'Student User';
+            const emailVal = document.getElementById('regEmailInput')?.value.trim().toLowerCase() || 'student@hisab.app';
+            pendingRegistrationData = {
+                method: 'email',
+                name: nameVal,
+                email: emailVal,
+                photo: `https://ui-avatars.com/api/?name=${encodeURIComponent(nameVal)}&background=00b894&color=fff`
+            };
         }
     }
 
-    // Save locally in fallback registry
+    const btn = document.getElementById('confirmRegBtn');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Completing Registration...";
+    }
+
+    if (pendingRegistrationData.method === 'email' && isFirebaseActive) {
+        try {
+            const userCred = await withTimeout(
+                firebase.auth().createUserWithEmailAndPassword(pendingRegistrationData.email, pass),
+                5000
+            );
+            pendingRegistrationData.uid = userCred.user.uid;
+            userCred.user.updateProfile({ displayName: pendingRegistrationData.name }).catch(() => {});
+        } catch (err) {
+            if (err.code === 'auth/email-already-in-use') {
+                try {
+                    const existingCred = await withTimeout(
+                        firebase.auth().signInWithEmailAndPassword(pendingRegistrationData.email, pass),
+                        4000
+                    );
+                    pendingRegistrationData.uid = existingCred.user.uid;
+                } catch (signInErr) {
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerText = "Confirm & Complete Registration ✓";
+                    }
+                    openAuthModal('login');
+                    document.getElementById('loginEmailInput').value = pendingRegistrationData.email;
+                    return showPopup("Already Registered!", "এই ইমেইল দিয়ে পূর্বেই অ্যাকাউন্ট খোলা হয়েছে! আপনার পূর্বের পাসওয়ার্ড দিয়ে Login করুন।", "error");
+                }
+            } else if (err.message === 'TIMEOUT') {
+                pendingRegistrationData.uid = 'local_' + pendingRegistrationData.email;
+            } else {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerText = "Confirm & Complete Registration ✓";
+                }
+                return showPopup("Registration Error", err.message, "error");
+            }
+        }
+    } else if (!pendingRegistrationData.uid) {
+        pendingRegistrationData.uid = 'local_' + pendingRegistrationData.email;
+    }
+
+    // Save locally in account registry
     let accounts = JSON.parse(localStorage.getItem('studentHisabAccounts')) || {};
     accounts[pendingRegistrationData.email] = {
         name: pendingRegistrationData.name,
@@ -236,6 +291,7 @@ async function completeFinalRegistration() {
     };
     localStorage.setItem('studentHisabAccounts', JSON.stringify(accounts));
 
+    // Set Master Password & User Profile immediately
     appData.masterPassword = pass;
     appData.user = {
         uid: pendingRegistrationData.uid,
@@ -244,18 +300,25 @@ async function completeFinalRegistration() {
         photo: pendingRegistrationData.photo
     };
 
-    await pushDataToFirebaseCloud();
     pendingRegistrationData = null;
-    isAuthProcessing = false;
     saveData(true);
     updateUserProfileUI();
-    closeModal('authModal');
+
+    // Immediately close Auth Modal and unlock App!
+    document.getElementById('authModal').classList.add('hidden');
+    if (btn) {
+        btn.disabled = false;
+        btn.innerText = "Confirm & Complete Registration ✓";
+    }
+
+    // Sync to Firestore in background without blocking the user interface
+    pushDataToFirebaseCloud();
+
     showPopup("Registration Complete!", `অভিনন্দন ${appData.user.name}! আপনার একাউন্ট ও মাস্টার পাসওয়ার্ড সফলভাবে চালু হয়েছে।`, "success");
 }
 
 // ==================== 4. DIRECT EMAIL + PASSWORD LOGIN ====================
 async function submitDirectEmailLogin() {
-    if (isAuthProcessing) return;
     const email = document.getElementById('loginEmailInput').value.trim().toLowerCase();
     const pass = document.getElementById('loginPassInput').value.trim();
 
@@ -263,11 +326,18 @@ async function submitDirectEmailLogin() {
         return showPopup("Missing Details", "অনুগ্রহ করে আপনার ইমেইল এবং পাসওয়ার্ড দিন!", "error");
     }
 
-    isAuthProcessing = true;
+    const loginBtn = document.getElementById('emailLoginSubmitBtn');
+    if (loginBtn) {
+        loginBtn.disabled = true;
+        loginBtn.innerText = "Logging in...";
+    }
 
     if (isFirebaseActive) {
         try {
-            const userCred = await firebase.auth().signInWithEmailAndPassword(email, pass);
+            const userCred = await withTimeout(
+                firebase.auth().signInWithEmailAndPassword(email, pass),
+                5000
+            );
             const u = userCred.user;
             appData.masterPassword = pass;
             appData.user = {
@@ -277,21 +347,26 @@ async function submitDirectEmailLogin() {
                 photo: `https://ui-avatars.com/api/?name=${encodeURIComponent(u.displayName || 'Student')}&background=00b894&color=fff`
             };
             await pullDataFromFirebaseCloud(u.uid);
-            isAuthProcessing = false;
             saveData(true);
             updateUserProfileUI();
-            closeModal('authModal');
+            document.getElementById('authModal').classList.add('hidden');
+            if (loginBtn) {
+                loginBtn.disabled = false;
+                loginBtn.innerText = "Login to Account";
+            }
             showPopup("Welcome Back!", `Logged in as ${appData.user.name}.`, "success");
             return;
         } catch (err) {
-            isAuthProcessing = false;
-            return showPopup("Login Failed", "ইমেইল অথবা পাসওয়ার্ড সঠিক নয়!", "error");
+            // Fall through to check local accounts if offline/timeout
         }
     }
 
     let accounts = JSON.parse(localStorage.getItem('studentHisabAccounts')) || {};
     const acc = accounts[email];
-    isAuthProcessing = false;
+    if (loginBtn) {
+        loginBtn.disabled = false;
+        loginBtn.innerText = "Login to Account";
+    }
 
     if (!acc || acc.pass !== pass) {
         return showPopup("Login Failed", "ইমেইল অথবা পাসওয়ার্ড সঠিক নয়!", "error");
@@ -306,19 +381,19 @@ async function submitDirectEmailLogin() {
     };
     saveData(true);
     updateUserProfileUI();
-    closeModal('authModal');
+    document.getElementById('authModal').classList.add('hidden');
     showPopup("Welcome Back!", `Logged in as ${acc.name}.`, "success");
 }
 
 // ==================== 5. SIGN OUT & CLOUD SYNC ====================
 function triggerSignOut() {
     if (isFirebaseActive && firebase.auth().currentUser) {
-        firebase.auth().signOut();
+        firebase.auth().signOut().catch(() => {});
     }
     appData.user = null;
     saveData(true);
     updateUserProfileUI();
-    showPopup("Signed Out", "আপনি সফলভাবে লগআউট করেছেন।", "success");
+    openAuthModal('login');
 }
 
 function handleAccountButtonAction() {
@@ -334,18 +409,18 @@ async function syncUpdatedPasswordToCloud(newPass) {
     try {
         const currentUser = firebase.auth().currentUser;
         if (currentUser) {
-            await currentUser.updatePassword(newPass).catch(() => {});
+            currentUser.updatePassword(newPass).catch(() => {});
         }
-        await pushDataToFirebaseCloud();
+        pushDataToFirebaseCloud();
     } catch (e) {
         console.warn("Password cloud sync notice:", e);
     }
 }
 
-async function pushDataToFirebaseCloud() {
+function pushDataToFirebaseCloud() {
     if (!isFirebaseActive || !appData.user || !appData.user.uid) return;
     try {
-        await firebase.firestore().collection('students').doc(appData.user.uid).set(appData);
+        firebase.firestore().collection('students').doc(appData.user.uid).set(appData).catch(() => {});
     } catch (e) {
         console.warn("Cloud push error:", e);
     }
@@ -354,14 +429,17 @@ async function pushDataToFirebaseCloud() {
 async function pullDataFromFirebaseCloud(uid) {
     if (!isFirebaseActive || !uid) return;
     try {
-        const doc = await firebase.firestore().collection('students').doc(uid).get();
-        if (doc.exists) {
+        const doc = await withTimeout(
+            firebase.firestore().collection('students').doc(uid).get(),
+            3000
+        );
+        if (doc && doc.exists) {
             const cloudData = doc.data();
             appData = { ...appData, ...cloudData, user: appData.user };
             saveData(true);
         }
     } catch (e) {
-        console.warn("Cloud pull error:", e);
+        console.warn("Cloud pull skipped:", e);
     }
 }
 
@@ -373,7 +451,7 @@ function updateUserProfileUI() {
     const btnEl = document.getElementById('googleAuthActionBtn');
     const statusText = document.getElementById('accountStatusText');
 
-    if (appData.user) {
+    if (appData.user && appData.masterPassword) {
         if (guestBtn) guestBtn.classList.add('hidden');
         if (profileBox) profileBox.classList.remove('hidden');
 
@@ -387,24 +465,15 @@ function updateUserProfileUI() {
         if (statusText) {
             statusText.innerHTML = `Signed in as <b>${appData.user.name}</b> (${appData.user.email}).`;
         }
+        document.getElementById('authModal').classList.add('hidden');
     } else {
         if (guestBtn) guestBtn.classList.remove('hidden');
         if (profileBox) profileBox.classList.add('hidden');
-
-        if (btnEl) {
-            btnEl.innerHTML = `<i class="ri-user-add-line"></i> Login / Register Account`;
-            btnEl.className = "btn btn-transfer";
-        }
-        if (statusText) {
-            statusText.innerText = "Login or register to sync your financial records securely.";
-        }
+        openAuthModal('register');
     }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
     renderAll();
     updateUserProfileUI();
-    if (!appData.user) {
-        setTimeout(() => { openAuthModal('register'); }, 400);
-    }
 });

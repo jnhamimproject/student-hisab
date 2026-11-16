@@ -1,11 +1,12 @@
-// ==================== 1. CENTRAL DATA STORE & POPUP (CLEAN ZERO DEFAULT) ====================
+// ==================== 1. CENTRAL DATA STORE & MASTER PASSWORD ====================
 
-const STORAGE_KEY = 'studentHisabData_v2'; // Clean v2 key clears old demo data automatically
+const STORAGE_KEY = 'studentHisabData_v4';
 
 function getCleanDefaultData() {
     return {
         user: null,
-        walletPassword: null,
+        masterPassword: null,
+        selectedWalletsForTotal: [], // Empty means ALL wallets included
         unsavedCloudCount: 0,
         isCloudSynced: true,
         wallets: [
@@ -25,10 +26,26 @@ function getCleanDefaultData() {
 
 let appData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || getCleanDefaultData();
 
-if (!appData.messRecords) appData.messRecords = [];
-if (!appData.tuitions) appData.tuitions = [];
-if (!appData.debts) appData.debts = [];
+// Safety checks so undefined arrays never crash any button
+if (!Array.isArray(appData.wallets)) appData.wallets = getCleanDefaultData().wallets;
+if (!Array.isArray(appData.selectedWalletsForTotal)) appData.selectedWalletsForTotal = [];
+if (!Array.isArray(appData.transactions)) appData.transactions = [];
+if (!Array.isArray(appData.goals)) appData.goals = [];
+if (!Array.isArray(appData.messRecords)) appData.messRecords = [];
+if (!Array.isArray(appData.tuitions)) appData.tuitions = [];
+if (!Array.isArray(appData.debts)) appData.debts = [];
 if (appData.unsavedCloudCount === undefined) appData.unsavedCloudCount = 0;
+
+// Mandatory Auth Gate Check
+function requireMandatoryAuth() {
+    if (!appData.user || !appData.masterPassword) {
+        if (typeof openAuthModal === 'function') {
+            openAuthModal('register');
+        }
+        return false;
+    }
+    return true;
+}
 
 function saveData(skipUnsavedIncrement = false) {
     if (!skipUnsavedIncrement) {
@@ -64,10 +81,14 @@ function showPopup(title, message, type = 'error') {
 }
 
 function closeModal(modalId) {
-    document.getElementById(modalId).classList.add('hidden');
+    // Prevent closing mandatory authModal if user is not logged in
+    if (modalId === 'authModal' && (!appData.user || !appData.masterPassword)) {
+        return;
+    }
+    const el = document.getElementById(modalId);
+    if (el) el.classList.add('hidden');
 }
 
-// Smart Cloud Sync Banner UI Controller
 function updateCloudSyncBanner() {
     const banner = document.getElementById('cloudSyncBanner');
     const icon = document.getElementById('syncBannerIcon');
@@ -98,10 +119,10 @@ function updateCloudSyncBanner() {
     }
 }
 
-// Rewarded Ad 5-Second Simulator + Real Cloud Sync Trigger
 function triggerSmartCloudSync() {
+    if (!requireMandatoryAuth()) return;
     if (appData.unsavedCloudCount === 0) {
-        showPopup("Up to Date", "You have no unsaved offline records right now!", "success");
+        showPopup("Up to Date", "আপনার সকল তথ্য ইতিমধ্যে সুরক্ষিত আছে!", "success");
         return;
     }
 
@@ -117,7 +138,7 @@ function triggerSmartCloudSync() {
     progress.style.width = '100%';
 
     let timeLeft = 5;
-    text.innerHTML = `Watching a 5-second sponsor ad to support free cloud storage & secure your <b>${appData.unsavedCloudCount}</b> records...`;
+    text.innerHTML = `Watching a 5-second sponsor ad to secure your <b>${appData.unsavedCloudCount}</b> records...`;
 
     const timer = setInterval(() => {
         timeLeft--;
@@ -129,15 +150,15 @@ function triggerSmartCloudSync() {
             closeBtn.disabled = false;
             closeBtn.style.opacity = '1';
             closeBtn.innerText = "Complete Cloud Sync ✓";
-            closeBtn.onclick = async function() {
+            closeBtn.onclick = function() {
                 modal.classList.add('hidden');
                 if (typeof pushDataToFirebaseCloud === 'function') {
-                    await pushDataToFirebaseCloud();
+                    pushDataToFirebaseCloud();
                 }
                 appData.unsavedCloudCount = 0;
                 appData.isCloudSynced = true;
                 saveData(true);
-                showPopup("Cloud Backup Complete!", "All your financial records are now 100% safe & backed up!", "success");
+                showPopup("Cloud Backup Complete!", "আপনার সকল হিসাব সফলভাবে ক্লাউডে সেভ হয়েছে!", "success");
             };
         }
     }, 1000);

@@ -1,8 +1,10 @@
-// ==================== 2. UI NAVIGATION, ADVANCED FILTERS & SMOOTH TOUCH SWIPE ====================
+// ==================== 2. UI NAVIGATION & CUSTOMIZABLE TOTAL BALANCE ====================
 
 let currentFilter = 'all';
 
 function switchPage(pageName, btnElement) {
+    if (!requireMandatoryAuth()) return;
+
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + pageName).classList.add('active');
 
@@ -26,6 +28,8 @@ function goToWalletTab() {
 }
 
 function openSubPage(subPageId) {
+    if (!requireMandatoryAuth()) return;
+
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById('page-' + subPageId).classList.add('active');
     if (subPageId === 'tuition' && typeof populateWalletSelect === 'function') {
@@ -39,15 +43,34 @@ function openSubPage(subPageId) {
 
 const menuBtn = document.getElementById('menuBtn');
 const dropdownMenu = document.getElementById('dropdownMenu');
-menuBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    dropdownMenu.classList.toggle('hidden');
+if (menuBtn) {
+    menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!requireMandatoryAuth()) return;
+        dropdownMenu.classList.toggle('hidden');
+    });
+}
+document.addEventListener('click', () => {
+    if (dropdownMenu) dropdownMenu.classList.add('hidden');
 });
-document.addEventListener('click', () => dropdownMenu.classList.add('hidden'));
 
-document.getElementById('openCustomizeBtn').addEventListener('click', () => {
-    document.getElementById('customizeModal').classList.toggle('hidden');
+function openProfileDropdown(e) {
+    e.stopPropagation();
+    if (!requireMandatoryAuth()) return;
+    document.getElementById('profileDropdown').classList.toggle('hidden');
+}
+document.addEventListener('click', () => {
+    const pDrop = document.getElementById('profileDropdown');
+    if (pDrop) pDrop.classList.add('hidden');
 });
+
+const openCustBtn = document.getElementById('openCustomizeBtn');
+if (openCustBtn) {
+    openCustBtn.addEventListener('click', () => {
+        if (!requireMandatoryAuth()) return;
+        document.getElementById('customizeModal').classList.toggle('hidden');
+    });
+}
 
 function toggleCard(cardName, checkbox) {
     const card = document.querySelector(`[data-card="${cardName}"]`);
@@ -113,8 +136,76 @@ function populateLedgerFilters() {
     catSel.value = [...catSel.options].some(o => o.value === prevC) ? prevC : 'all';
 }
 
+// ==================== MAIN PAGE WALLET FILTER BUTTON (FIXED) ====================
+function openBalanceFilterModal() {
+    if (!requireMandatoryAuth()) return;
+
+    if (!Array.isArray(appData.selectedWalletsForTotal)) {
+        appData.selectedWalletsForTotal = [];
+    }
+
+    const container = document.getElementById('balanceFilterCheckboxes');
+    if (!container) return;
+
+    container.innerHTML = appData.wallets.map(w => {
+        const isChecked = appData.selectedWalletsForTotal.length === 0 || appData.selectedWalletsForTotal.includes(w.name);
+        return `
+            <label>
+                <input type="checkbox" value="${w.name}" ${isChecked ? 'checked' : ''}>
+                <span>${w.name} — <b>৳ ${w.balance.toLocaleString()}</b></span>
+            </label>
+        `;
+    }).join('');
+
+    const passInput = document.getElementById('balanceFilterPass');
+    if (passInput) passInput.value = '';
+
+    document.getElementById('balanceFilterModal').classList.remove('hidden');
+}
+
+function saveBalanceFilterSettings() {
+    const pass = document.getElementById('balanceFilterPass').value.trim();
+    if (pass !== appData.masterPassword) {
+        return showPopup("Incorrect Password", "পাসওয়ার্ড সঠিক নয়! আপনার সঠিক মাস্টার পাসওয়ার্ড দিন।", "error");
+    }
+
+    const checkboxes = document.querySelectorAll('#balanceFilterCheckboxes input[type="checkbox"]');
+    const selected = [];
+    checkboxes.forEach(cb => {
+        if (cb.checked) selected.push(cb.value);
+    });
+
+    if (selected.length === 0) {
+        return showPopup("Select At Least One", "টোটাল ব্যালেন্স দেখানোর জন্য অন্তত ১টি ওয়ালেট সিলেক্ট করুন!", "error");
+    }
+
+    appData.selectedWalletsForTotal = selected.length === appData.wallets.length ? [] : selected;
+    saveData(true);
+    closeModal('balanceFilterModal');
+    renderAll();
+    showPopup("Balance View Updated!", `এখন থেকে আপনার সিলেক্ট করা (${selected.join(', ')}) ওয়ালেটের ব্যালেন্স হোমপেজে শো করবে।`, "success");
+}
+
 function renderAll() {
-    const totalBalance = appData.wallets.reduce((sum, w) => sum + w.balance, 0);
+    if (!Array.isArray(appData.selectedWalletsForTotal)) {
+        appData.selectedWalletsForTotal = [];
+    }
+
+    let activeWallets = appData.wallets;
+    const labelEl = document.getElementById('balanceFilterLabel');
+
+    if (appData.selectedWalletsForTotal.length > 0) {
+        activeWallets = appData.wallets.filter(w => appData.selectedWalletsForTotal.includes(w.name));
+        if (labelEl) {
+            labelEl.innerHTML = `<i class="ri-filter-3-fill"></i> Showing: ${appData.selectedWalletsForTotal.join(' + ')}`;
+        }
+    } else {
+        if (labelEl) {
+            labelEl.innerHTML = `<i class="ri-checkbox-circle-line"></i> All Wallets Included`;
+        }
+    }
+
+    const totalBalance = activeWallets.reduce((sum, w) => sum + (Number(w.balance) || 0), 0);
     document.getElementById('homeTotalBalance').innerText = `৳ ${totalBalance.toLocaleString()}`;
 
     document.getElementById('homeWalletList').innerHTML = appData.wallets.map(w =>
@@ -135,11 +226,12 @@ function renderAll() {
     let monthlyInc = 0, monthlyExp = 0, todayExp = 0, todayCount = 0;
 
     appData.transactions.forEach(t => {
-        if (t.type === 'income') monthlyInc += Number(t.amount) || 0;
+        const amt = Number(t.amount) || 0;
+        if (t.type === 'income') monthlyInc += amt;
         if (t.type === 'expense') {
-            monthlyExp += Number(t.amount) || 0;
+            monthlyExp += amt;
             if (new Date(t.date).toDateString() === todayStr) {
-                todayExp += Number(t.amount) || 0;
+                todayExp += amt;
                 todayCount++;
             }
         }
@@ -153,15 +245,16 @@ function renderAll() {
 
     let totalLent = 0, totalBorrowed = 0;
     appData.debts.forEach(d => {
-        if (d.type === 'lent') totalLent += Number(d.amount) || 0;
-        else totalBorrowed += Number(d.amount) || 0;
+        const amt = Number(d.amount) || 0;
+        if (d.type === 'lent') totalLent += amt;
+        else totalBorrowed += amt;
     });
     document.getElementById('homeTotalLent').innerText = `৳ ${totalLent.toLocaleString()}`;
     document.getElementById('homeTotalBorrowed').innerText = `৳ ${totalBorrowed.toLocaleString()}`;
 
     const goalListEl = document.getElementById('savingsGoalList');
     if (appData.goals.length === 0) {
-        goalListEl.innerHTML = `<p style="font-size:12px; color:#8ab4be;">No savings goals yet. Click "+ New Goal" to start saving!</p>`;
+        goalListEl.innerHTML = `<p style="font-size:12px; color:#8ab4be;">No savings goals yet.</p>`;
     } else {
         goalListEl.innerHTML = appData.goals.map(g => {
             const pct = Math.min(100, Math.round((g.saved / g.target) * 100));
@@ -245,7 +338,7 @@ function renderTransactions() {
     }
 
     if (filtered.length === 0) {
-        listEl.innerHTML = `<p style="text-align:center; color:#7eaab5; padding:24px 12px; font-size:13px;">No transactions recorded yet. Tap "+ Income" or "- Expense" on Home to add your first entry!</p>`;
+        listEl.innerHTML = `<p style="text-align:center; color:#7eaab5; padding:24px 12px; font-size:13px;">No transactions recorded yet.</p>`;
         return;
     }
 
@@ -275,27 +368,11 @@ function renderTransactions() {
     }).join('');
 }
 
-// ==================== RELIABLE TOUCH-SWIPE & MANUAL AD SLIDER ====================
-
+// Independent Ad Slider
 const customAdsList = [
-    {
-        id: 1,
-        title: "📢 বিজ্ঞাপন দিতে যোগাযোগ করুন (Click Here)",
-        image: "https://placehold.co/600x160/0b3b49/00e6b8?text=Promote+Your+Brand+Here+%7C+Contact+Us",
-        link: "https://docs.google.com/forms/u/0/"
-    },
-    {
-        id: 2,
-        title: "💡 আমাদের সহযোগিতা করতে আপনার আইডিয়া শেয়ার করুন",
-        image: "https://placehold.co/600x160/123e35/ffffff?text=Share+Your+Ideas+%26+Feedback+With+Us",
-        link: "https://docs.google.com/forms/u/0/"
-    },
-    {
-        id: 3,
-        title: "🎓 শিক্ষার্থীদের জন্য বিশেষ স্কিল ও কোডিং রিসোর্স দেখুন",
-        image: "https://placehold.co/600x160/1e293b/38bdf8?text=Student+Special+Resources+%26+Tools",
-        link: "https://jnhamim.web.app"
-    }
+    { id: 1, title: "📢 বিজ্ঞাপন দিতে যোগাযোগ করুন (Click Here)", image: "https://placehold.co/600x160/0b3b49/00e6b8?text=Promote+Your+Brand+Here", link: "https://docs.google.com/forms/u/0/" },
+    { id: 2, title: "💡 আমাদের সহযোগিতা করতে আপনার আইডিয়া শেয়ার করুন", image: "https://placehold.co/600x160/123e35/ffffff?text=Share+Your+Ideas+%26+Feedback", link: "https://docs.google.com/forms/u/0/" },
+    { id: 3, title: "🎓 শিক্ষার্থীদের জন্য বিশেষ স্কিল ও কোডিং রিসোর্স দেখুন", image: "https://placehold.co/600x160/1e293b/38bdf8?text=Student+Special+Resources", link: "https://jnhamim.web.app" }
 ];
 
 let currentAdIndex = 0;
@@ -318,55 +395,19 @@ function initCustomAdSlider() {
     startAdAutoLoop();
 
     if (touchArea) {
-        // Mobile Touch Events
-        touchArea.addEventListener('touchstart', (e) => {
-            startX = e.touches[0].clientX;
-            isSwiping = false;
-        }, { passive: true });
-
-        touchArea.addEventListener('touchmove', (e) => {
-            const currentX = e.touches[0].clientX;
-            if (Math.abs(startX - currentX) > 15) {
-                isSwiping = true;
-            }
-        }, { passive: true });
-
+        touchArea.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; isSwiping = false; }, { passive: true });
+        touchArea.addEventListener('touchmove', (e) => { if (Math.abs(startX - e.touches[0].clientX) > 15) isSwiping = true; }, { passive: true });
         touchArea.addEventListener('touchend', (e) => {
-            const endX = e.changedTouches[0].clientX;
-            const diff = startX - endX;
-            if (Math.abs(diff) > 30) {
-                if (diff > 0) nextCustomAd();
-                else prevCustomAd();
-            }
-        });
-
-        // Laptop Mouse Drag Support
-        touchArea.addEventListener('mousedown', (e) => {
-            startX = e.clientX;
-            isSwiping = false;
-        });
-
-        touchArea.addEventListener('mouseup', (e) => {
-            const diff = startX - e.clientX;
-            if (Math.abs(diff) > 35) {
-                isSwiping = true;
-                if (diff > 0) nextCustomAd();
-                else prevCustomAd();
-            }
+            const diff = startX - e.changedTouches[0].clientX;
+            if (Math.abs(diff) > 30) { if (diff > 0) nextCustomAd(); else prevCustomAd(); }
         });
     }
 }
 
 function openCurrentAdLink(e) {
-    if (isSwiping) {
-        e.preventDefault();
-        isSwiping = false;
-        return;
-    }
+    if (isSwiping) { e.preventDefault(); isSwiping = false; return; }
     const ad = customAdsList[currentAdIndex];
-    if (ad && ad.link) {
-        window.open(ad.link, '_blank', 'noopener,noreferrer');
-    }
+    if (ad && ad.link) window.open(ad.link, '_blank', 'noopener,noreferrer');
 }
 
 function startAdAutoLoop() {
@@ -377,24 +418,9 @@ function startAdAutoLoop() {
     }, 6000);
 }
 
-function nextCustomAd(e) {
-    if (e) e.stopPropagation();
-    currentAdIndex = (currentAdIndex + 1) % customAdsList.length;
-    showCustomAd(currentAdIndex);
-    startAdAutoLoop();
-}
-
-function prevCustomAd(e) {
-    if (e) e.stopPropagation();
-    currentAdIndex = (currentAdIndex - 1 + customAdsList.length) % customAdsList.length;
-    showCustomAd(currentAdIndex);
-    startAdAutoLoop();
-}
-
-function manualSelectAd(idx) {
-    showCustomAd(idx);
-    startAdAutoLoop();
-}
+function nextCustomAd(e) { if (e) e.stopPropagation(); currentAdIndex = (currentAdIndex + 1) % customAdsList.length; showCustomAd(currentAdIndex); startAdAutoLoop(); }
+function prevCustomAd(e) { if (e) e.stopPropagation(); currentAdIndex = (currentAdIndex - 1 + customAdsList.length) % customAdsList.length; showCustomAd(currentAdIndex); startAdAutoLoop(); }
+function manualSelectAd(idx) { showCustomAd(idx); startAdAutoLoop(); }
 
 function showCustomAd(index) {
     currentAdIndex = index;
@@ -403,19 +429,12 @@ function showCustomAd(index) {
     const captionEl = document.getElementById('customAdCaption');
 
     if (!imgEl) return;
-
     imgEl.style.opacity = '0.3';
-    setTimeout(() => {
-        imgEl.src = ad.image;
-        captionEl.innerText = ad.title;
-        imgEl.style.opacity = '1';
-    }, 120);
+    setTimeout(() => { imgEl.src = ad.image; captionEl.innerText = ad.title; imgEl.style.opacity = '1'; }, 120);
 
     document.querySelectorAll('.ad-dot').forEach((dot, idx) => {
         dot.classList.toggle('active', idx === index);
     });
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    initCustomAdSlider();
-});
+document.addEventListener('DOMContentLoaded', () => { initCustomAdSlider(); });
